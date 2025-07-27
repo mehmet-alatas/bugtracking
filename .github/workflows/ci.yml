@@ -1,0 +1,61 @@
+name: CI - Build and Test
+
+on:
+  push:
+    branches:
+      - main  # Ana branch'e yapılan push işlemi
+  pull_request:
+    branches:
+      - main  # Ana branch'e yapılan pull request işlemleri
+
+jobs:
+  # Frontend Build ve Test
+  frontend:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v2
+
+    - name: Set up Node.js for React
+      uses: actions/setup-node@v2
+      with:
+        node-version: '14'
+
+    - name: Install Dependencies for Frontend
+      run: |
+        cd frontend
+        npm install  # React frontend bağımlılıklarını kur
+
+    - name: Build React App
+      run: |
+        cd frontend
+        npm run build  # React frontend uygulamasını build et
+
+    - name: Run Frontend Tests
+      run: |
+        cd frontend
+        npm test -- --coverage  # React frontend testlerini çalıştır
+
+  # Backend Build ve Test
+  backend:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v2
+
+    - name: Set up Node.js for Backend
+      uses: actions/setup-node@v2
+      with:
+        node-version: '14'
+
+    - name: Install Dependencies for Backend
+      run: |
+        cd backend
+        npm install  # Node.js backend bağımlılıklarını kur
+
+    - name: Run Backend Tests
+      run: |
+        cd backend
+        npm test  # Node.js backend testlerini çalıştır
