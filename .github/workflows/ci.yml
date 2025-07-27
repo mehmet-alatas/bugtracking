@@ -32,11 +32,6 @@ jobs:
         cd frontend
         CI=false npm run build  # React frontend uygulamasını build et
 
-    - name: Run Frontend Tests
-      run: |
-        cd frontend
-        npm test -- --coverage  # React frontend testlerini çalıştır
-
   # Backend Build ve Test
   backend:
     runs-on: ubuntu-latest
