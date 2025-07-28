@@ -1,20 +1,27 @@
-name: CI - Build and Test
+name: CI - Build, Test and Run
 
 on:
   push:
     branches:
-      - main
+      - main  # Ana branch'e yapılan push işlemi
   pull_request:
     branches:
-      - main
+      - main  # Ana branch'e yapılan pull request işlemleri
 
 jobs:
   build_and_test:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Repository'i çekme
-      - uses: actions/checkout@v2
+      # 1. Repository'i çekme (Uygulama ve Test Framework Reposu)
+      - name: Checkout the Application Repository
+        uses: actions/checkout@v2
+
+      - name: Checkout Test Framework Repository
+        uses: actions/checkout@v2
+        with:
+          repository: 'mehmet-alatas/testframework'  # Test framework repo URL'si
+          token: ${{ secrets.GITHUB_TOKEN }}  # Github token'ınızı kullanarak erişim sağlıyoruz
 
       # 2. Frontend için Node.js kurulum
       - name: Set up Node.js for Frontend
@@ -32,7 +39,8 @@ jobs:
       - name: Start Frontend Application
         run: |
           cd frontend
-          nohup npm start &  # Arka planda başlatıyoruz
+          nohup npm start &  # Uygulama arka planda çalışacak
+          sleep 10  # 10 saniye bekleyin, çünkü frontend hemen başlamayabilir.
 
       # 5. Backend için Node.js kurulum
       - name: Set up Node.js for Backend
@@ -50,28 +58,43 @@ jobs:
       - name: Start Backend Application
         run: |
           cd backend
-          nohup npm start &  # Arka planda başlatıyoruz
+          nohup npm start &  # Uygulama arka planda çalışacak
+          sleep 10  # 10 saniye bekleyin
 
       # 8. Frontend ve Backend'in hazır olduğunu kontrol etme
       - name: Wait for Frontend to be ready
         run: |
+          timeout=600  # 10 dakika
           while ! curl --silent --fail http://localhost:3000; do
             echo "Waiting for frontend to start..."
             sleep 10
+            ((timeout--))
+            if [ $timeout -le 0 ]; then
+              echo "Timeout reached, frontend did not start!"
+              exit 1
+            fi
           done
           echo "Frontend is ready!"
 
       - name: Wait for Backend to be ready
         run: |
+          timeout=600  # 10 dakika
           while ! curl --silent --fail http://localhost:3001; do
             echo "Waiting for backend to start..."
             sleep 10
+            ((timeout--))
+            if [ $timeout -le 0 ]; then
+              echo "Timeout reached, backend did not start!"
+              exit 1
+            fi
           done
           echo "Backend is ready!"
 
-      # 9. Selenium ve Cucumber testlerini çalıştırma
+      # 9. Test framework'ünü çalıştırma (Selenium ve Cucumber testleri)
       - name: Run Selenium and Cucumber Tests
-        run: mvn clean verify  # Test framework'ünüzü çalıştıran komut
+        run: |
+          cd ../testframework  # Test framework dizinine git
+          mvn clean verify  # Maven ile testleri çalıştır
 
       # 10. Test tamamlandıktan sonra uygulamaları kapatma
       - name: Stop Frontend Application
@@ -81,9 +104,3 @@ jobs:
       - name: Stop Backend Application
         run: |
           pkill -f "npm start"  # Backend uygulamasını kapat
-
-
-      - name: Stop Backend Application
-        run: |
-          kill $(lsof -t -i:3001)  # Port 3001'de çalışan tüm işlemleri durdur
-
