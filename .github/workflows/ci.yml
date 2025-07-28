@@ -67,13 +67,12 @@ jobs:
         repository: 'mehmet-alatas/testframework'  # Test framework repo URL'si
         token: ${{ secrets.GITHUB_TOKEN }}  # Github token'ınızı kullanarak erişim sağlıyoruz
 
-    # 2. Java ve Maven (veya başka test framework'ü) kurulumu
-    - name: Set up Java and Maven
+    # 2. Java 21 ve Maven kurulumu (Temurin JDK)
+    - name: Set up Java 21 and Maven
       uses: actions/setup-java@v2
       with:
-        java-version: '21'  # Java sürümünüzü burada belirtebilirsiniz
-        distribution: 'adoptopenjdk'
-
+        java-version: '21'  # Java 21 sürümünü kullanıyoruz
+        distribution: 'temurin'  # Adoptium'un Temurin dağıtımını kullanıyoruz
     # 3. Maven bağımlılıklarını yükleme
     - name: Install Maven Dependencies
       run: mvn clean install  # Maven bağımlılıklarını yükleyin
