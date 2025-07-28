@@ -71,7 +71,7 @@ jobs:
     - name: Set up Java and Maven
       uses: actions/setup-java@v2
       with:
-        java-version: '11'  # Java sürümünüzü burada belirtebilirsiniz
+        java-version: '21'  # Java sürümünüzü burada belirtebilirsiniz
         distribution: 'adoptopenjdk'
 
     # 3. Maven bağımlılıklarını yükleme
