@@ -3,80 +3,91 @@ name: CI - Build and Test
 on:
   push:
     branches:
-      - main  # Ana branch'e yapılan push işlemi
+      - main
   pull_request:
     branches:
-      - main  # Ana branch'e yapılan pull request işlemleri
+      - main
 
 jobs:
-  # Frontend Build ve Test
-  frontend:
+  build_and_test:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v2
+      # 1. Repository'i çekme
+      - uses: actions/checkout@v2
 
-    - name: Set up Node.js for React
-      uses: actions/setup-node@v2
-      with:
-        node-version: '14'
+      # 2. Backend ve Frontend uygulamaları için gerekli ortamı hazırlama
 
-    - name: Install Dependencies for Frontend
-      run: |
-        cd frontend
-        npm install  # React frontend bağımlılıklarını kur
+      # Frontend build ve test
+      - name: Set up Node.js for Frontend
+        uses: actions/setup-node@v2
+        with:
+          node-version: '14'
 
-    - name: Build React App
-      run: |
-        cd frontend
-        CI=false npm run build  # React frontend uygulamasını build et
+      - name: Install Dependencies for Frontend
+        run: |
+          cd frontend
+          npm install  # React frontend bağımlılıklarını kur
 
-  # Backend Build ve Test
-  backend:
-    runs-on: ubuntu-latest
+      - name: Build React App
+        run: |
+          cd frontend
+          CI=false npm run build  # React frontend uygulamasını build et
 
-    steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v2
+      # Backend build ve test
+      - name: Set up Node.js for Backend
+        uses: actions/setup-node@v2
+        with:
+          node-version: '14'
 
-    - name: Set up Node.js for Backend
-      uses: actions/setup-node@v2
-      with:
-        node-version: '14'
+      - name: Install Dependencies for Backend
+        run: |
+          cd backend
+          npm install  # Node.js backend bağımlılıklarını kur
 
-    - name: Install Dependencies for Backend
-      run: |
-        cd backend
-        npm install  # Node.js backend bağımlılıklarını kur
+      - name: Run Backend Tests
+        run: |
+          cd backend
+          npm test  # Node.js backend testlerini çalıştır
 
-    - name: Run Backend Tests
-      run: |
-        cd backend
-        npm test  # Node.js backend testlerini çalıştır
+      # 3. Uygulamanın başlatılmasını beklemek
+      # Backend ve Frontend uygulamalarını başlatma (Yalnızca frontend için örnek veriyorum)
+      - name: Start Frontend Application
+        run: |
+          cd frontend
+          npm start &  # Uygulama arka planda çalıştırılacak
 
-  # Test Framework'ü (Selenium, Cucumber, Java testleri) Çalıştırma
-  test:
-    runs-on: ubuntu-latest
+      - name: Start Backend Application
+        run: |
+          cd backend
+          npm start &  # Uygulama arka planda çalıştırılacak
 
-    steps:
-    # 1. Test framework'ünüzün bulunduğu repository'yi çekme
-    - name: Checkout Test Framework Repository
-      uses: actions/checkout@v2
-      with:
-        repository: 'mehmet-alatas/testframework'  # Test framework repo URL'si
-        token: ${{ secrets.GITHUB_TOKEN }}  # Github token'ınızı kullanarak erişim sağlıyoruz
+      # 4. Uygulamanın çalışmaya başladığını kontrol etme (Bağlantı testi yapma)
+      - name: Wait for Frontend to be ready
+        run: |
+          while ! curl --silent --fail http://localhost:3000; do
+            echo "Waiting for frontend to start..."
+            sleep 10
+          done
+          echo "Frontend is ready!"
 
-    # 2. Java 21 ve Maven kurulumu (Temurin JDK)
-    - name: Set up Java 21 and Maven
-      uses: actions/setup-java@v2
-      with:
-        java-version: '21'  # Java 21 sürümünü kullanıyoruz
-        distribution: 'temurin'  # Adoptium'un Temurin dağıtımını kullanıyoruz
-    # 3. Maven bağımlılıklarını yükleme
-    - name: Install Maven Dependencies
-      run: mvn clean install  # Maven bağımlılıklarını yükleyin
+      - name: Wait for Backend to be ready
+        run: |
+          while ! curl --silent --fail http://localhost:5000; do
+            echo "Waiting for backend to start..."
+            sleep 10
+          done
+          echo "Backend is ready!"
 
-    # 4. Selenium ve Cucumber testlerini çalıştırma
-    - name: Run Selenium and Cucumber Tests
-      run: mvn test  # Test framework'ünüzü çalıştıran komut
+      # 5. Test framework'ünü çalıştırma (Selenium, Cucumber testleri)
+      - name: Run Selenium and Cucumber Tests
+        run: mvn clean verify  # Test framework'ünüzü çalıştıran komut
+
+      # 6. Test tamamlandıktan sonra uygulamayı kapatmak
+      - name: Stop Frontend Application
+        run: |
+          pkill -f "npm start"  # Frontend uygulamasını kapat
+
+      - name: Stop Backend Application
+        run: |
+          pkill -f "npm start"  # Backend uygulamasını kapat
