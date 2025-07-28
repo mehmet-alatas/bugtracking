@@ -3,10 +3,10 @@ name: CI - Build and Test
 on:
   push:
     branches:
-      - main  # Ana branch'e yapılan push işlemi
+      - main
   pull_request:
     branches:
-      - main  # Ana branch'e yapılan pull request işlemleri
+      - main
 
 jobs:
   build_and_test:
@@ -32,8 +32,8 @@ jobs:
       - name: Start Backend Application
         run: |
           cd backend
-          npm start &  # Backend'i arka planda başlatıyoruz
-          sleep 20  # Backend'in tam olarak başlatılmasını bekle
+          npm start --host 0.0.0.0 &  # Backend'i arka planda başlatıyoruz
+          sleep 30  # Backend'in başlatılmasını beklemek için daha fazla zaman ver
 
       # 5. Backend'in başlatıldığını kontrol etme
       - name: Wait for Backend to be ready
