@@ -3,10 +3,10 @@ name: CI - Build and Test
 on:
   push:
     branches:
-      - main
+      - main  # Ana branch'e yapılan push işlemi
   pull_request:
     branches:
-      - main
+      - main  # Ana branch'e yapılan pull request işlemleri
 
 jobs:
   build_and_test:
@@ -16,49 +16,30 @@ jobs:
       # 1. Repository'i çekme
       - uses: actions/checkout@v2
 
-      # 2. Frontend için Node.js kurulum
-      - name: Set up Node.js for Frontend
-        uses: actions/setup-node@v2
-        with:
-          node-version: '14'
-
-      # 3. Frontend bağımlılıklarını kurma
-      - name: Install Dependencies for Frontend
-        run: |
-          cd frontend
-          npm install
-
-      # 4. Frontend uygulamasını başlatma
-      - name: Start Frontend Application
-        run: |
-          cd frontend
-          npm start &  # Frontend arka planda çalışacak
-          sleep 10
-
-      # 5. Backend için Node.js kurulum
+      # 2. Backend için Node.js kurulum
       - name: Set up Node.js for Backend
         uses: actions/setup-node@v2
         with:
           node-version: '14'
 
-      # 6. Backend bağımlılıklarını kurma
+      # 3. Backend bağımlılıklarını kurma
       - name: Install Dependencies for Backend
         run: |
           cd backend
-          npm install
+          npm install  # Backend bağımlılıklarını kur
 
-      # 7. Backend uygulamasını başlatma
+      # 4. Backend uygulamasını başlatma
       - name: Start Backend Application
         run: |
           cd backend
-          npm start  # Backend'i ön planda başlatıyoruz
-          sleep 10
+          npm start &  # Backend'i arka planda başlatıyoruz
+          sleep 20  # Backend'in tam olarak başlatılmasını bekle
 
-      # 8. Uygulamanın başlatılmasını bekleme
+      # 5. Backend'in başlatıldığını kontrol etme
       - name: Wait for Backend to be ready
         run: |
-          timeout=600
-          while ! curl --silent --fail http://localhost:3001; do  # Portu 3001 olarak değiştiriyoruz
+          timeout=600  # 10 dakika bekleme süresi
+          while ! curl --silent --fail http://localhost:3001; do  # Backend portu 3001 olarak kullanıyoruz
             echo "Waiting for backend to start..."
             sleep 10
             ((timeout--))
@@ -69,11 +50,60 @@ jobs:
           done
           echo "Backend is ready!"
 
-      # 9. Test framework'ünü çalıştırma (Selenium ve Cucumber testleri)
+      # 6. Frontend için Node.js kurulum
+      - name: Set up Node.js for Frontend
+        uses: actions/setup-node@v2
+        with:
+          node-version: '14'
+
+      # 7. Frontend bağımlılıklarını kurma
+      - name: Install Dependencies for Frontend
+        run: |
+          cd frontend
+          npm install  # Frontend bağımlılıklarını kur
+
+      # 8. Frontend uygulamasını başlatma
+      - name: Start Frontend Application
+        run: |
+          cd frontend
+          npm start &  # Frontend'i arka planda başlatıyoruz
+          sleep 10  # Frontend'in başlatılmasını bekle
+
+      # 9. Frontend'in başlatıldığını kontrol etme
+      - name: Wait for Frontend to be ready
+        run: |
+          timeout=600  # 10 dakika bekleme süresi
+          while ! curl --silent --fail http://localhost:3000; do  # Frontend portu 3000 olarak kullanıyoruz
+            echo "Waiting for frontend to start..."
+            sleep 10
+            ((timeout--))
+            if [ $timeout -le 0 ]; then
+              echo "Timeout reached, frontend did not start!"
+              exit 1
+            fi
+          done
+          echo "Frontend is ready!"
+
+      # 10. Test framework'ünü çalıştırma (Selenium ve Cucumber testleri)
+      - name: Checkout Test Framework Repository
+        uses: actions/checkout@v2
+        with:
+          repository: 'mehmet-alatas/testframework'  # Test framework repo URL'si
+          token: ${{ secrets.GITHUB_TOKEN }}  # Github token'ınızı kullanarak erişim sağlıyoruz
+
+      - name: Set up Java 21 and Maven
+        uses: actions/setup-java@v2
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Install Maven Dependencies
+        run: mvn clean install  # Maven bağımlılıklarını yükleyin
+
       - name: Run Selenium and Cucumber Tests
         run: mvn clean verify  # Test framework'ünüzü çalıştıran komut
 
-      # 10. Test tamamlandıktan sonra uygulamaları kapatma
+      # 11. Test tamamlandıktan sonra uygulamaları kapatma
       - name: Stop Frontend Application
         run: |
           pkill -f "npm start"  # Frontend uygulamasını kapat
@@ -81,4 +111,3 @@ jobs:
       - name: Stop Backend Application
         run: |
           pkill -f "npm start"  # Backend uygulamasını kapat
-
