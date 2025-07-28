@@ -3,80 +3,53 @@ name: CI - Build and Test
 on:
   push:
     branches:
-      - main  # Ana branch'e yapılan push işlemi
+      - main
   pull_request:
     branches:
-      - main  # Ana branch'e yapılan pull request işlemleri
+      - main
 
 jobs:
-  # Frontend Build ve Test
-  frontend:
+  build_and_test:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v2
+      # 1. Repository'i çekme
+      - uses: actions/checkout@v2
 
-    - name: Set up Node.js for React
-      uses: actions/setup-node@v2
-      with:
-        node-version: '14'
+      # 2. Docker kullanarak uygulamayı başlatma (Frontend ve Backend)
+      - name: Start Backend container
+        run: |
+          docker run -d --name backend-app -p 5000:5000 your-backend-image
 
-    - name: Install Dependencies for Frontend
-      run: |
-        cd frontend
-        npm install  # React frontend bağımlılıklarını kur
+      - name: Start Frontend container
+        run: |
+          docker run -d --name frontend-app -p 3000:3000 your-frontend-image
 
-    - name: Build React App
-      run: |
-        cd frontend
-        CI=false npm run build  # React frontend uygulamasını build et
+      # 3. Uygulamanın hazır olmasını bekleme
+      - name: Wait for the frontend to be ready
+        run: |
+          while ! curl --silent --fail http://localhost:3000; do
+            echo "Waiting for frontend to start..."
+            sleep 10
+          done
+          echo "Frontend is ready!"
 
-  # Backend Build ve Test
-  backend:
-    runs-on: ubuntu-latest
+      - name: Wait for the backend to be ready
+        run: |
+          while ! curl --silent --fail http://localhost:5000; do
+            echo "Waiting for backend to start..."
+            sleep 10
+          done
+          echo "Backend is ready!"
 
-    steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v2
+      # 4. Test framework'ünüzü çalıştırma
+      - name: Run Selenium and Cucumber Tests
+        run: mvn clean verify  # Maven komutunu testlerinizi çalıştırmak için kullanın
 
-    - name: Set up Node.js for Backend
-      uses: actions/setup-node@v2
-      with:
-        node-version: '14'
+      # 5. Test sonuçlarını yükleme (Opsiyonel)
+      - name: Upload test results as artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: selenium-test-results
+          path: target/cucumber-html-reports/overview-features.html  # Test raporlarının bulunduğu yer
 
-    - name: Install Dependencies for Backend
-      run: |
-        cd backend
-        npm install  # Node.js backend bağımlılıklarını kur
-
-    - name: Run Backend Tests
-      run: |
-        cd backend
-        npm test  # Node.js backend testlerini çalıştır
-
-  # Test Framework'ü (Selenium, Cucumber, Java testleri) Çalıştırma
-  test:
-    runs-on: ubuntu-latest
-
-    steps:
-    # 1. Test framework'ünüzün bulunduğu repository'yi çekme
-    - name: Checkout Test Framework Repository
-      uses: actions/checkout@v2
-      with:
-        repository: 'mehmet-alatas/testframework'  # Test framework repo URL'si
-        token: ${{ secrets.GITHUB_TOKEN }}  # Github token'ınızı kullanarak erişim sağlıyoruz
-
-    # 2. Java 21 ve Maven kurulumu (Temurin JDK)
-    - name: Set up Java 21 and Maven
-      uses: actions/setup-java@v2
-      with:
-        java-version: '21'  # Java 21 sürümünü kullanıyoruz
-        distribution: 'temurin'  # Adoptium'un Temurin dağıtımını kullanıyoruz
-    # 3. Maven bağımlılıklarını yükleme
-    - name: Install Maven Dependencies
-      run: mvn clean install  # Maven bağımlılıklarını yükleyin
-
-    # 4. Selenium ve Cucumber testlerini çalıştırma
-    - name: Run Selenium and Cucumber Tests
-      run: mvn test  # Test framework'ünüzü çalıştıran komut
