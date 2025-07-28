@@ -46,10 +46,10 @@ jobs:
       - name: Run Selenium and Cucumber Tests
         run: mvn clean verify  # Maven komutunu testlerinizi çalıştırmak için kullanın
 
-      # 5. Test sonuçlarını yükleme (Opsiyonel)
-      - name: Upload test results as artifact
-        uses: actions/upload-artifact@v2
-        with:
-          name: selenium-test-results
-          path: target/cucumber-html-reports/overview-features.html  # Test raporlarının bulunduğu yer
+      # # 5. Test sonuçlarını yükleme (Opsiyonel)
+      # - name: Upload test results as artifact
+      #   uses: actions/upload-artifact@v2
+      #   with:
+      #     name: selenium-test-results
+      #     path: target/cucumber-html-reports/overview-features.html  # Test raporlarının bulunduğu yer
 
