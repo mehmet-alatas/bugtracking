@@ -54,3 +54,30 @@ jobs:
       run: |
         cd backend
         npm test  # Node.js backend testlerini çalıştır
+
+  # Test Framework'ü (Selenium, Cucumber, Java testleri) Çalıştırma
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    # 1. Test framework'ünüzün bulunduğu repository'yi çekme
+    - name: Checkout Test Framework Repository
+      uses: actions/checkout@v2
+      with:
+        repository: 'mehmet-alatas/testframework'  # Test framework repo URL'si
+        token: ${{ secrets.GITHUB_TOKEN }}  # Github token'ınızı kullanarak erişim sağlıyoruz
+
+    # 2. Java ve Maven (veya başka test framework'ü) kurulumu
+    - name: Set up Java and Maven
+      uses: actions/setup-java@v2
+      with:
+        java-version: '11'  # Java sürümünüzü burada belirtebilirsiniz
+        distribution: 'adoptopenjdk'
+
+    # 3. Maven bağımlılıklarını yükleme
+    - name: Install Maven Dependencies
+      run: mvn clean install  # Maven bağımlılıklarını yükleyin
+
+    # 4. Selenium ve Cucumber testlerini çalıştırma
+    - name: Run Selenium and Cucumber Tests
+      run: mvn test  # Test framework'ünüzü çalıştıran komut
