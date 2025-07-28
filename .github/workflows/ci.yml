@@ -73,7 +73,7 @@ jobs:
 
       - name: Wait for Backend to be ready
         run: |
-          while ! curl --silent --fail http://localhost:5000; do
+          while ! curl --silent --fail http://localhost:30001; do
             echo "Waiting for backend to start..."
             sleep 10
           done
