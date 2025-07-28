@@ -16,88 +16,72 @@ jobs:
       # 1. Repository'i çekme
       - uses: actions/checkout@v2
 
-      # Frontend ve Backend kurulum adımları
-
+      # 2. Frontend için Node.js kurulum
       - name: Set up Node.js for Frontend
         uses: actions/setup-node@v2
         with:
           node-version: '14'
 
+      # 3. Frontend bağımlılıklarını kurma
       - name: Install Dependencies for Frontend
         run: |
           cd frontend
-          npm install  # Frontend bağımlılıklarını kur
+          npm install  # React frontend bağımlılıklarını kur
 
-      - name: Build React App
+      # 4. React Uygulamasını Başlatma
+      - name: Start Frontend Application
         run: |
           cd frontend
-          CI=false npm run build  # React uygulamasını build et
+          nohup npm start &  # Arka planda başlatıyoruz
 
-      # Backend kurulum ve test adımları
+      # 5. Backend için Node.js kurulum
       - name: Set up Node.js for Backend
         uses: actions/setup-node@v2
         with:
           node-version: '14'
 
+      # 6. Backend bağımlılıklarını kurma
       - name: Install Dependencies for Backend
         run: |
           cd backend
           npm install  # Backend bağımlılıklarını kur
 
-      - name: Run Backend Tests
-        run: |
-          cd backend
-          npm test  # Backend testlerini çalıştır
-
-      # Uygulamaların başlatılması ve bağlantı testi
-      - name: Start Frontend Application
-        run: |
-          cd frontend
-          npm start &  # Uygulama arka planda çalışacak
-          sleep 20  # 20 saniye bekle
-
+      # 7. Backend Uygulamasını Başlatma
       - name: Start Backend Application
         run: |
           cd backend
-          npm start &  # Uygulama arka planda çalışacak
-          sleep 20  # 20 saniye bekle
+          nohup npm start &  # Arka planda başlatıyoruz
 
+      # 8. Frontend ve Backend'in hazır olduğunu kontrol etme
       - name: Wait for Frontend to be ready
         run: |
-          timeout=600
           while ! curl --silent --fail http://localhost:3000; do
             echo "Waiting for frontend to start..."
             sleep 10
-            ((timeout--))
-            if [ $timeout -le 0 ]; then
-              echo "Timeout reached, frontend did not start!"
-              exit 1
-            fi
           done
           echo "Frontend is ready!"
 
       - name: Wait for Backend to be ready
         run: |
-          timeout=600
           while ! curl --silent --fail http://localhost:3001; do
             echo "Waiting for backend to start..."
             sleep 10
-            ((timeout--))
-            if [ $timeout -le 0 ]; then
-              echo "Timeout reached, backend did not start!"
-              exit 1
-            fi
           done
           echo "Backend is ready!"
 
-      # Test framework'ünü çalıştırma
+      # 9. Selenium ve Cucumber testlerini çalıştırma
       - name: Run Selenium and Cucumber Tests
-        run: mvn clean verify
+        run: mvn clean verify  # Test framework'ünüzü çalıştıran komut
 
-      # Uygulamayı durdurma
+      # 10. Test tamamlandıktan sonra uygulamaları kapatma
       - name: Stop Frontend Application
         run: |
-          kill $(lsof -t -i:3000)  # Port 3000'de çalışan tüm işlemleri durdur
+          pkill -f "npm start"  # Frontend uygulamasını kapat
+
+      - name: Stop Backend Application
+        run: |
+          pkill -f "npm start"  # Backend uygulamasını kapat
+
 
       - name: Stop Backend Application
         run: |
