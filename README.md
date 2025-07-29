@@ -1,5 +1,9 @@
 # E2E Testing with GitHub Actions
 
+<img width="1278" height="430" alt="workflow" src="https://github.com/user-attachments/assets/b7a28ae0-96d8-41af-af53-e11bee5c9c2b" />
+
+<img width="970" height="594" alt="githubactions" src="https://github.com/user-attachments/assets/1bac39c8-08bf-4277-8bf6-44ac6811be67" />
+
 This repository demonstrates automated End-to-End (E2E) testing using GitHub Actions for a **React & Node.js CRUD Application**. The CI/CD pipeline automatically runs comprehensive tests using Selenium Java, Cucumber, and REST Assured frameworks.
 
 ## 🚀 Application Overview
