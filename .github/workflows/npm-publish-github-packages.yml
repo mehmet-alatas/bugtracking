@@ -1,0 +1,137 @@
+name: Debug Test Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  debug-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+    
+    # Test 1: Basit Summary Oluşturma
+    - name: Create Simple Summary
+      run: |
+        echo "# 🧪 DEBUG TEST SUMMARY" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "Bu bir test summary'sidir." >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Tarih:** $(date)" >> $GITHUB_STEP_SUMMARY
+        echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## 📋 Test Bilgileri" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Summary oluşturuldu" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Artifacts hazırlandı" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**🔗 [GitHub Repository](${{ github.server_url }}/${{ github.repository }})**" >> $GITHUB_STEP_SUMMARY
+    
+    # Test 2: Test Dosyaları Oluşturma
+    - name: Create Test Files
+      run: |
+        mkdir -p test-reports
+        echo "# Test Raporu" > test-reports/test-summary.md
+        echo "" >> test-reports/test-summary.md
+        echo "Bu bir test raporu dosyasıdır." >> test-reports/test-summary.md
+        echo "Tarih: $(date)" >> test-reports/test-summary.md
+        echo "" >> test-reports/test-summary.md
+        echo "## Test Sonuçları" >> test-reports/test-summary.md
+        echo "- Tüm testler başarılı" >> test-reports/test-summary.md
+        
+        # Fake Cucumber URL
+        echo "https://reports.cucumber.io/reports/fake-test-url-123" > test-reports/cucumber-url.txt
+        
+        # Test log
+        echo "Test log başlangıcı" > test-reports/test.log
+        echo "Maven başlatılıyor..." >> test-reports/test.log
+        echo "Testler çalışıyor..." >> test-reports/test.log
+        echo "🥒 Cucumber report: https://reports.cucumber.io/reports/fake-test-url-123" >> test-reports/test.log
+        echo "Test log sonu" >> test-reports/test.log
+        
+        # Dosyaları listele
+        echo "=== Oluşturulan dosyalar ==="
+        ls -la test-reports/
+        echo "=== Test summary içeriği ==="
+        cat test-reports/test-summary.md
+    
+    # Test 3: Artifacts Upload
+    - name: Upload Test Artifacts
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: debug-test-reports
+        path: |
+          test-reports/
+        retention-days: 7
+    
+    # Test 4: Multiple Artifacts
+    - name: Upload Individual Files
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: cucumber-url-only
+        path: test-reports/cucumber-url.txt
+        retention-days: 7
+    
+    # Test 5: Environment Variable Test
+    - name: Test Environment Variables
+      run: |
+        echo "TEST_URL=https://example.com/test-report" >> $GITHUB_ENV
+        echo "Environment variable set: TEST_URL"
+    
+    # Test 6: Use Environment Variable in Summary
+    - name: Add Environment Variable to Summary
+      run: |
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## 🌐 Environment Test" >> $GITHUB_STEP_SUMMARY
+        echo "**Test URL:** ${{ env.TEST_URL }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Current Env:** ${TEST_URL:-Not Set}" >> $GITHUB_STEP_SUMMARY
+    
+    # Test 7: PR Comment (sadece PR'larda)
+    - name: Comment on PR
+      uses: actions/github-script@v7
+      if: github.event_name == 'pull_request'
+      with:
+        script: |
+          const testComment = `# 🧪 DEBUG TEST RESULTS
+          
+          Bu bir debug test yorumudur.
+          
+          ## 📊 Test Bilgileri
+          - **Tarih:** ${new Date().toLocaleString()}
+          - **Branch:** ${context.ref.replace('refs/heads/', '')}
+          - **Workflow:** ${context.workflow}
+          
+          ## 📁 Artifacts
+          - \`debug-test-reports\` - Tüm test dosyaları
+          - \`cucumber-url-only\` - Sadece Cucumber URL
+          
+          **🔗 [Workflow Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})**
+          `;
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: testComment
+          });
+    
+    # Test 8: Final Summary Addition
+    - name: Final Summary Check
+      if: always()
+      run: |
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "---" >> $GITHUB_STEP_SUMMARY
+        echo "## ✅ Debug Test Tamamlandı" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "Eğer bu summary'yi görebiliyorsanız, sistem çalışıyor demektir!" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Artifacts kontrolü:** Sayfanın en altına scroll yapın." >> $GITHUB_STEP_SUMMARY
+        
+        # Summary içeriğini de konsola yazdır
+        echo "=== GITHUB_STEP_SUMMARY içeriği ==="
+        cat $GITHUB_STEP_SUMMARY
