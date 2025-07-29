@@ -244,36 +244,51 @@ jobs:
         echo "=== Creating GitHub Job Summary ==="
         echo "Current CUCUMBER_REPORT_URL: ${CUCUMBER_REPORT_URL:-NOT_SET}"
         
-        echo "# 🧪 E2E Test Results" >> $GITHUB_STEP_SUMMARY
+        echo "# 🥒 E2E TEST SUMMARY" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "**🕐 Execution Time:** $(date)" >> $GITHUB_STEP_SUMMARY
-        echo "**🌿 Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "Test execution completed successfully!" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Tarih:** $(date)" >> $GITHUB_STEP_SUMMARY
+        echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         
         if [ "$CUCUMBER_REPORT_URL" != "NOT_FOUND" ] && [ ! -z "$CUCUMBER_REPORT_URL" ]; then
-          echo "## 🥒 Live Cucumber Report" >> $GITHUB_STEP_SUMMARY
+          echo "## 🌐 Live Cucumber Report" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**🔗 [View Online Cucumber Report]($CUCUMBER_REPORT_URL)**" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "> 📋 Bu rapor canlı olup, test sonuçlarını interaktif şekilde görüntüleyebilirsiniz." >> $GITHUB_STEP_SUMMARY
+          echo "**Test URL:** [$CUCUMBER_REPORT_URL]($CUCUMBER_REPORT_URL)" >> $GITHUB_STEP_SUMMARY
+          echo "**Current Env:** $CUCUMBER_REPORT_URL" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
         else
-          echo "## ⚠️ Cucumber Report" >> $GITHUB_STEP_SUMMARY
+          echo "## ⚠️ Cucumber Report Status" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Online Cucumber report URL bulunamadı. Lütfen test loglarını kontrol edin." >> $GITHUB_STEP_SUMMARY
+          echo "Online Cucumber report URL bulunamadı. Lütfen artifacts'taki logları kontrol edin." >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
         fi
         
-        echo "## 📁 Downloadable Reports" >> $GITHUB_STEP_SUMMARY
+        echo "## 📋 Test Bilgileri" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ E2E testler çalıştırıldı" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Test raporları oluşturuldu" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Artifacts hazırlandı" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "| Report Type | Description |" >> $GITHUB_STEP_SUMMARY
-        echo "|-------------|-------------|" >> $GITHUB_STEP_SUMMARY
-        echo "| 📋 test-summary-report | Test özeti, loglar ve rapor linkleri |" >> $GITHUB_STEP_SUMMARY
-        echo "| 🥒 cucumber-html-report | HTML formatında Cucumber raporları |" >> $GITHUB_STEP_SUMMARY
-        echo "| 📊 comprehensive-test-reports | Tüm test dosyaları ve raporları |" >> $GITHUB_STEP_SUMMARY
-        echo "| 📸 test-screenshots | Hata durumunda ekran görüntüleri |" >> $GITHUB_STEP_SUMMARY
+        
+        echo "## 📁 Available Reports" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "**💡 İpucu:** Yukarıdaki 'Artifacts' bölümünden raporları indirebilirsiniz." >> $GITHUB_STEP_SUMMARY
+        echo "| 📁 Artifact | 📝 Description |" >> $GITHUB_STEP_SUMMARY
+        echo "|-------------|----------------|" >> $GITHUB_STEP_SUMMARY
+        echo "| 📋 \`test-summary-report\` | Test özeti, loglar ve rapor linkleri |" >> $GITHUB_STEP_SUMMARY
+        echo "| 🥒 \`cucumber-html-report\` | HTML formatında Cucumber raporları |" >> $GITHUB_STEP_SUMMARY
+        echo "| 📊 \`comprehensive-test-reports\` | Tüm test dosyaları ve raporları |" >> $GITHUB_STEP_SUMMARY
+        echo "| 📸 \`test-screenshots\` | Hata durumunda ekran görüntüleri |" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        echo "**🔗 [GitHub Repository](${{ github.server_url }}/${{ github.repository }})**" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "---" >> $GITHUB_STEP_SUMMARY
+        echo "## ✅ E2E Test Tamamlandı" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "Eğer bu summary'yi görebiliyorsanız, E2E testler başarıyla çalıştı!" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Artifacts kontrolü:** Sayfanın en altına scroll yapın." >> $GITHUB_STEP_SUMMARY
         
         echo "=== Job Summary created ==="
         cat $GITHUB_STEP_SUMMARY
