@@ -94,6 +94,11 @@ jobs:
     - name: Run E2E Tests
       run: |
         cd tests
+        
+        # Debug: Show current directory and files
+        echo "=== Current directory: $(pwd) ==="
+        ls -la
+        
         # Check if cucumber.properties exists
         if [ ! -f src/test/resources/cucumber.properties ]; then
           echo "Creating cucumber.properties file..."
@@ -102,10 +107,18 @@ jobs:
           echo "cucumber.publish.quiet=false" >> src/test/resources/cucumber.properties
         fi
         
+        echo "=== cucumber.properties content ==="
+        cat src/test/resources/cucumber.properties || echo "No cucumber.properties found"
+        
         # Run tests and capture output to find report URL
+        echo "=== Starting Maven tests ==="
         mvn clean install 2>&1 | tee test_output.log || {
           echo "Tests completed with some failures"
         }
+        
+        echo "=== Searching for Cucumber report URL in logs ==="
+        cat test_output.log | grep -i cucumber || echo "No cucumber mentions found"
+        cat test_output.log | grep -i "reports.cucumber.io" || echo "No cucumber.io URLs found"
         
         # Extract Cucumber report URL from logs
         CUCUMBER_URL=$(grep -oP "https://reports\.cucumber\.io/reports/[a-f0-9-]+" test_output.log | head -1 || echo "")
@@ -114,9 +127,13 @@ jobs:
           echo "🥒 Cucumber Report URL: $CUCUMBER_URL"
           echo "$CUCUMBER_URL" > cucumber_report_url.txt
         else
-          echo "CUCUMBER_REPORT_URL=" >> $GITHUB_ENV
+          echo "CUCUMBER_REPORT_URL=NOT_FOUND" >> $GITHUB_ENV
           echo "No Cucumber report URL found in logs"
+          echo "NOT_FOUND" > cucumber_report_url.txt
         fi
+        
+        echo "=== Environment variable set ==="
+        echo "CUCUMBER_REPORT_URL: $CUCUMBER_REPORT_URL"
     
     # 12. Generate test reports
     - name: Generate Test Reports
@@ -133,33 +150,50 @@ jobs:
     - name: Create Report Summary
       run: |
         cd tests
-        echo "# 🧪 E2E Test Results Summary" > test_summary.md
-        echo "" >> test_summary.md
-        echo "## 📊 Test Reports" >> test_summary.md
-        echo "" >> test_summary.md
         
-        if [ ! -z "$CUCUMBER_REPORT_URL" ]; then
-          echo "### 🥒 Online Cucumber Report" >> test_summary.md
-          echo "**Live Report URL:** [$CUCUMBER_REPORT_URL]($CUCUMBER_REPORT_URL)" >> test_summary.md
-          echo "" >> test_summary.md
+        echo "=== Creating report summary ==="
+        echo "Current CUCUMBER_REPORT_URL: ${CUCUMBER_REPORT_URL:-NOT_SET}"
+        
+        # Create reports directory if it doesn't exist
+        mkdir -p reports
+        
+        echo "# 🧪 E2E Test Results Summary" > reports/test_summary.md
+        echo "" >> reports/test_summary.md
+        echo "## 📊 Test Reports" >> reports/test_summary.md
+        echo "" >> reports/test_summary.md
+        
+        if [ "$CUCUMBER_REPORT_URL" != "NOT_FOUND" ] && [ ! -z "$CUCUMBER_REPORT_URL" ]; then
+          echo "### 🥒 Online Cucumber Report" >> reports/test_summary.md
+          echo "**Live Report URL:** [$CUCUMBER_REPORT_URL]($CUCUMBER_REPORT_URL)" >> reports/test_summary.md
+          echo "" >> reports/test_summary.md
         else
-          echo "### ⚠️ Online Cucumber Report" >> test_summary.md
-          echo "No online report URL was generated. Check the logs for details." >> test_summary.md
-          echo "" >> test_summary.md
+          echo "### ⚠️ Online Cucumber Report" >> reports/test_summary.md
+          echo "No online report URL was generated. Check the logs for details." >> reports/test_summary.md
+          echo "" >> reports/test_summary.md
         fi
         
-        echo "### 📁 Downloaded Reports" >> test_summary.md
-        echo "- **cucumber-html-report**: HTML formatında detaylı test raporları" >> test_summary.md
-        echo "- **comprehensive-test-reports**: Tüm test dosyaları (JSON, XML, HTML)" >> test_summary.md
-        echo "" >> test_summary.md
+        echo "### 📁 Downloaded Reports" >> reports/test_summary.md
+        echo "- **cucumber-html-report**: HTML formatında detaylı test raporları" >> reports/test_summary.md
+        echo "- **comprehensive-test-reports**: Tüm test dosyaları (JSON, XML, HTML)" >> reports/test_summary.md
+        echo "" >> reports/test_summary.md
         
-        echo "### 📸 Screenshots" >> test_summary.md
-        echo "Test başarısız olması durumunda ekran görüntüleri `test-screenshots` artifact'ında bulunur." >> test_summary.md
-        echo "" >> test_summary.md
+        echo "### 📸 Screenshots" >> reports/test_summary.md
+        echo "Test başarısız olması durumunda ekran görüntüleri \`test-screenshots\` artifact'ında bulunur." >> reports/test_summary.md
+        echo "" >> reports/test_summary.md
         
-        echo "**Test Execution Time:** $(date)" >> test_summary.md
-        echo "**Repository:** ${{ github.repository }}" >> test_summary.md
-        echo "**Branch:** ${{ github.ref_name }}" >> test_summary.md
+        echo "**Test Execution Time:** $(date)" >> reports/test_summary.md
+        echo "**Repository:** ${{ github.repository }}" >> reports/test_summary.md
+        echo "**Branch:** ${{ github.ref_name }}" >> reports/test_summary.md
+        
+        echo "=== Report summary created ==="
+        cat reports/test_summary.md
+        
+        # Also create a simple text file with just the URL for easy access
+        if [ "$CUCUMBER_REPORT_URL" != "NOT_FOUND" ] && [ ! -z "$CUCUMBER_REPORT_URL" ]; then
+          echo "$CUCUMBER_REPORT_URL" > reports/cucumber_report_url.txt
+        else
+          echo "No URL found" > reports/cucumber_report_url.txt
+        fi
     
     # 14. Upload Test Summary as Artifact
     - name: Upload Test Summary
@@ -168,8 +202,9 @@ jobs:
       with:
         name: test-summary-report
         path: |
-          tests/test_summary.md
-          tests/cucumber_report_url.txt
+          tests/reports/test_summary.md
+          tests/reports/cucumber_report_url.txt
+          tests/test_output.log
         retention-days: 30
     
     # 15. Upload Cucumber HTML Report
@@ -206,15 +241,26 @@ jobs:
     - name: Create Job Summary
       if: always()
       run: |
+        echo "=== Creating GitHub Job Summary ==="
+        echo "Current CUCUMBER_REPORT_URL: ${CUCUMBER_REPORT_URL:-NOT_SET}"
+        
         echo "# 🧪 E2E Test Results" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**🕐 Execution Time:** $(date)" >> $GITHUB_STEP_SUMMARY
+        echo "**🌿 Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
         
-        if [ ! -z "$CUCUMBER_REPORT_URL" ]; then
+        if [ "$CUCUMBER_REPORT_URL" != "NOT_FOUND" ] && [ ! -z "$CUCUMBER_REPORT_URL" ]; then
           echo "## 🥒 Live Cucumber Report" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**🔗 [View Online Cucumber Report]($CUCUMBER_REPORT_URL)**" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "> 📋 Bu rapor canlı olup, test sonuçlarını interaktif şekilde görüntüleyebilirsiniz." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "## ⚠️ Cucumber Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Online Cucumber report URL bulunamadı. Lütfen test loglarını kontrol edin." >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
         fi
         
@@ -222,12 +268,15 @@ jobs:
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "| Report Type | Description |" >> $GITHUB_STEP_SUMMARY
         echo "|-------------|-------------|" >> $GITHUB_STEP_SUMMARY
-        echo "| 📋 test-summary-report | Test özeti ve rapor linkleri |" >> $GITHUB_STEP_SUMMARY
+        echo "| 📋 test-summary-report | Test özeti, loglar ve rapor linkleri |" >> $GITHUB_STEP_SUMMARY
         echo "| 🥒 cucumber-html-report | HTML formatında Cucumber raporları |" >> $GITHUB_STEP_SUMMARY
         echo "| 📊 comprehensive-test-reports | Tüm test dosyaları ve raporları |" >> $GITHUB_STEP_SUMMARY
         echo "| 📸 test-screenshots | Hata durumunda ekran görüntüleri |" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "**💡 İpucu:** Artifacts bölümünden raporları indirebilirsiniz." >> $GITHUB_STEP_SUMMARY
+        echo "**💡 İpucu:** Yukarıdaki 'Artifacts' bölümünden raporları indirebilirsiniz." >> $GITHUB_STEP_SUMMARY
+        
+        echo "=== Job Summary created ==="
+        cat $GITHUB_STEP_SUMMARY
     
     # 19. Comment PR with enhanced test results
     - name: Comment Test Results on PR
@@ -238,26 +287,29 @@ jobs:
           const fs = require('fs');
           
           let reportComment = '# 🧪 E2E Test Results\n\n';
+          reportComment += `**⏰ Test Execution:** ${new Date().toLocaleString()}\n`;
+          reportComment += `**🌿 Branch:** ${context.ref.replace('refs/heads/', '')}\n\n`;
           
           // Add Cucumber report link if available
           const cucumberUrl = process.env.CUCUMBER_REPORT_URL;
-          if (cucumberUrl) {
+          if (cucumberUrl && cucumberUrl !== 'NOT_FOUND' && cucumberUrl !== '') {
             reportComment += '## 🥒 Live Cucumber Report\n';
             reportComment += `**🔗 [View Interactive Cucumber Report](${cucumberUrl})**\n\n`;
             reportComment += '> 📋 Bu rapor canlı olup, test sonuçlarını detaylı şekilde inceleyebilirsiniz.\n\n';
+          } else {
+            reportComment += '## ⚠️ Cucumber Report\n';
+            reportComment += 'Online Cucumber report URL bulunamadı. Lütfen artifacts\'taki logları kontrol edin.\n\n';
           }
           
           reportComment += '## 📊 Available Reports\n\n';
           reportComment += '| 📁 Artifact | 📝 Description |\n';
           reportComment += '|-------------|----------------|\n';
-          reportComment += '| 📋 `test-summary-report` | Test özeti ve tüm rapor linkleri |\n';
+          reportComment += '| 📋 `test-summary-report` | Test özeti, loglar ve tüm rapor linkleri |\n';
           reportComment += '| 🥒 `cucumber-html-report` | HTML formatında Cucumber raporları |\n';
           reportComment += '| 📊 `comprehensive-test-reports` | Tüm test dosyaları (JSON, XML, HTML) |\n';
           reportComment += '| 📸 `test-screenshots` | Hata durumunda ekran görüntüleri |\n\n';
           
-          reportComment += '**💡 İpucu:** Yukarıdaki Artifacts bölümünden istediğiniz raporu indirebilirsiniz.\n\n';
-          reportComment += `**⏰ Test Execution:** ${new Date().toLocaleString()}\n`;
-          reportComment += `**🌿 Branch:** ${context.ref.replace('refs/heads/', '')}\n`;
+          reportComment += '**💡 İpucu:** Yukarıdaki "Artifacts" bölümünden istediğiniz raporu indirebilirsiniz.\n\n';
           reportComment += `**🔗 [View Full Workflow Run](${context.payload.pull_request.html_url}/checks)`;
           
           github.rest.issues.createComment({
