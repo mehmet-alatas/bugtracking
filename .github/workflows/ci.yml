@@ -111,20 +111,28 @@ jobs:
         # Generate Cucumber reports
         mvn verify -DskipTests || true
     
-    # 13. Upload test reports as artifacts
-    - name: Upload Test Reports
+    # 13. Upload Cucumber HTML Report
+    - name: Upload Cucumber HTML Report
       uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: test-reports
-        path: |
-          tests/target/default-cucumber-reports.html
-          tests/target/cucumber-reports/
-          tests/target/surefire-reports/
-          tests/target/site/
+        name: cucumber-html-report
+        path: target/default-cucumber-reports.html
         retention-days: 30
     
-    # 14. Upload screenshots on failure
+    # 14. Upload comprehensive test reports
+    - name: Upload All Test Reports
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: comprehensive-test-reports
+        path: |
+          target/cucumber-reports/
+          target/surefire-reports/
+          target/site/
+        retention-days: 30
+    
+    # 15. Upload screenshots on failure
     - name: Upload Screenshots
       uses: actions/upload-artifact@v4
       if: failure()
@@ -133,7 +141,7 @@ jobs:
         path: tests/screenshots/
         retention-days: 7
     
-    # 15. Cleanup background processes
+    # 16. Cleanup background processes
     - name: Cleanup Background Processes
       if: always()
       run: |
@@ -148,8 +156,8 @@ jobs:
         # Kill any remaining processes on ports 3000 and 3001
         sudo kill -9 $(sudo lsof -t -i:3000) || true
         sudo kill -9 $(sudo lsof -t -i:3001) || true
-
-    # 16. Comment PR with test results (optional)
+    
+    # 17. Comment PR with test results (optional)
     - name: Comment Test Results on PR
       uses: actions/github-script@v7
       if: github.event_name == 'pull_request'
