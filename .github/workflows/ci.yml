@@ -110,6 +110,10 @@ jobs:
         cd tests
         # Generate Cucumber reports
         mvn verify -DskipTests || true
+        
+        # Debug: List all files in target directory
+        echo "=== Listing target directory contents ==="
+        find target -type f -name "*.html" -o -name "*.json" -o -name "*.xml" | head -20 || echo "No report files found"
     
     # 13. Upload Cucumber HTML Report
     - name: Upload Cucumber HTML Report
@@ -117,7 +121,9 @@ jobs:
       if: always()
       with:
         name: cucumber-html-report
-        path: target/default-cucumber-reports.html
+        path: |
+          tests/target/**/*.html
+          tests/target/**/*.json
         retention-days: 30
     
     # 14. Upload comprehensive test reports
@@ -127,9 +133,7 @@ jobs:
       with:
         name: comprehensive-test-reports
         path: |
-          target/cucumber-reports/
-          target/surefire-reports/
-          target/site/
+          tests/target/
         retention-days: 30
     
     # 15. Upload screenshots on failure
