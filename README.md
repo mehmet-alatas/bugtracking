@@ -232,9 +232,7 @@ env:
 ## 📋 Best Practices Implemented
 
 ### Security
-- Uses `GITHUB_TOKEN` for repository access
 - No sensitive data in workflow files
-- Secure artifact handling
 
 ### Performance
 - **Parallel Execution:** ThreadLocal WebDriver support
