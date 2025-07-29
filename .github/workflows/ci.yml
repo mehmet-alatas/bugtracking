@@ -94,6 +94,14 @@ jobs:
     - name: Run E2E Tests
       run: |
         cd tests
+        # Check if cucumber.properties exists
+        if [ ! -f src/test/resources/cucumber.properties ]; then
+          echo "Creating cucumber.properties file..."
+          mkdir -p src/test/resources
+          echo "cucumber.publish.enabled=true" > src/test/resources/cucumber.properties
+          echo "cucumber.publish.quiet=true" >> src/test/resources/cucumber.properties
+        fi
+        
         # Run all tests with clean install
         mvn clean install || true
         
@@ -111,19 +119,22 @@ jobs:
         # Generate Cucumber reports
         mvn verify -DskipTests || true
         
+        # Generate GitHub Pages compatible Cucumber report
+        mvn test -Dcucumber.publish.enabled=true || true
+        
         # Debug: List all files in target directory
         echo "=== Listing target directory contents ==="
         find target -type f -name "*.html" -o -name "*.json" -o -name "*.xml" | head -20 || echo "No report files found"
     
-    # 13. Upload Cucumber HTML Report
+    # 13. Upload Cucumber HTML Report Only
     - name: Upload Cucumber HTML Report
       uses: actions/upload-artifact@v4
       if: always()
       with:
         name: cucumber-html-report
         path: |
-          tests/target/**/*.html
-          tests/target/**/*.json
+          tests/target/**/*cucumber*.html
+          tests/target/**/*report*.html
         retention-days: 30
     
     # 14. Upload comprehensive test reports
@@ -161,7 +172,7 @@ jobs:
         sudo kill -9 $(sudo lsof -t -i:3000) || true
         sudo kill -9 $(sudo lsof -t -i:3001) || true
     
-    # 17. Comment PR with test results (optional)
+    # 17. Comment PR with test results and Cucumber report link
     - name: Comment Test Results on PR
       uses: actions/github-script@v7
       if: github.event_name == 'pull_request'
@@ -170,11 +181,28 @@ jobs:
           const fs = require('fs');
           const path = 'tests/target/cucumber-reports/cucumber-html-reports/overview-features.html';
           
-          if (fs.existsSync(path)) {
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: '🧪 E2E Test Results are ready! Check the artifacts section for detailed reports.'
-            });
+          // Try to find Cucumber report URL from logs
+          let reportComment = '🧪 E2E Test Results are ready!\n\n';
+          reportComment += '📊 **Reports Available:**\n';
+          reportComment += '- Check the **Artifacts** section for detailed reports\n';
+          reportComment += '- Download `cucumber-html-report` for HTML reports\n';
+          reportComment += '- Download `comprehensive-test-reports` for all test files\n\n';
+          
+          // Check if Cucumber published online report
+          try {
+            const logFiles = fs.readdirSync('tests/target/surefire-reports/', { withFileTypes: true });
+            reportComment += '🔗 **Online Cucumber Report:** Check the GitHub Actions logs for the published report URL\n';
+          } catch (e) {
+            console.log('No surefire reports found');
           }
+          
+          if (fs.existsSync(path)) {
+            reportComment += '\n✅ Local HTML reports generated successfully!';
+          }
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: reportComment
+          });
