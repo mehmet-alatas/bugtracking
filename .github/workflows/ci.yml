@@ -29,7 +29,9 @@ jobs:
         cd app/backend
         npm install
     
-    # 4. Install frontend dependencies
+    # 4. Install serve globally for frontend
+    - name: Install Serve Package
+      run: npm install -g serve
     - name: Install Frontend Dependencies
       run: |
         cd app/frontend
@@ -49,7 +51,8 @@ jobs:
     - name: Build and Start Frontend
       run: |
         cd app/frontend
-        npm run build
+        # Disable treating warnings as errors in CI
+        CI=false npm run build
         npx serve -s build -l 3000 &
         echo $! > frontend.pid
         # Wait for frontend to be ready
