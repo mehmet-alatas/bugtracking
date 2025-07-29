@@ -118,6 +118,7 @@ jobs:
       with:
         name: test-reports
         path: |
+          tests/target/default-cucumber-reports.html
           tests/target/cucumber-reports/
           tests/target/surefire-reports/
           tests/target/site/
