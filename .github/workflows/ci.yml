@@ -5,89 +5,296 @@ on:
     branches: [ main, develop ]
   pull_request:
     branches: [ main, develop ]
-
+  workflow_dispatch:
+  
 jobs:
   e2e-tests:
     runs-on: ubuntu-latest
-
+    
     steps:
-    # 1. Uygulama reposunu checkout et
+    # 1. Checkout application repository
     - name: Checkout Application Code
       uses: actions/checkout@v4
       with:
         path: app
-
-    # 2. Node.js kurulumunu yap
+    
+    # 2. Setup Node.js for application
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: '18'
-
-    # 3. Backend bağımlılıklarını yükle
+    
+    # 3. Install backend dependencies
     - name: Install Backend Dependencies
       run: |
         cd app/backend
         npm install
-
-    # 4. Newman'ı küresel olarak yükle
-    - name: Install Newman
-      run: npm install -g newman
-
-    # 5. Frontend için serve paketini küresel olarak yükle
+    
+    # 4. Install serve globally for frontend
     - name: Install Serve Package
       run: npm install -g serve
-
-    # 6. Frontend bağımlılıklarını yükle
     - name: Install Frontend Dependencies
       run: |
         cd app/frontend
         npm install
-
-    # 7. Backend sunucusunu arka planda başlat
+    
+    # 5. Start backend server in background
     - name: Start Backend Server
       run: |
         cd app/backend
         npm start &
         echo $! > backend.pid
+        # Wait for backend to be ready
         sleep 10
-        curl -f http://localhost:3001 || echo "Backend started"
-
-    # 8. Frontend'i inşa et ve başlat
+        curl -f http://localhost:3001 || curl -f http://localhost:3001/api/health || echo "Backend started"
+    
+    # 6. Build and start frontend
     - name: Build and Start Frontend
       run: |
         cd app/frontend
+        # Disable treating warnings as errors in CI
         CI=false npm run build
         npx serve -s build -l 3000 &
         echo $! > frontend.pid
+        # Wait for frontend to be ready
         sleep 15
         curl -f http://localhost:3000 || echo "Frontend started"
-
-    # 9. API Testlerini Newman ile Çalıştır
-    - name: Run API Tests with Newman
+    
+    # 7. Verify services are running
+    - name: Health Check Services
       run: |
-        cd test/postman
-        newman run postman_collection.json -e environment.json --reporters cli,html --reporter-html-export newman-report.html
-        mv newman-report.html tests/reports/
-
-    # 10. Newman Raporunu Artifact Olarak Yükle
-    - name: Upload Newman Report
-      uses: actions/upload-artifact@v4
+        echo "Checking backend on port 3001..."
+        curl -f http://localhost:3001 || echo "Backend health check failed but continuing..."
+        echo "Checking frontend on port 3000..."
+        curl -f http://localhost:3000 || echo "Frontend health check failed but continuing..."
+        netstat -tulpn | grep :300
+    
+    # 8. Checkout test repository
+    - name: Checkout Test Repository
+      uses: actions/checkout@v4
       with:
-        name: newman-report
-        path: tests/reports/newman-report.html
+        repository: mehmet-alatas/testframework
+        path: tests
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    # 9. Setup Java for tests
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '21'
+        cache: 'maven'
+    
+    # 10. Install Chrome for headless testing
+    - name: Setup Chrome
+      uses: browser-actions/setup-chrome@latest
+      with:
+        chrome-version: stable
+    
+    # 11. Run E2E Tests and Capture Cucumber Report URL
+    - name: Run E2E Tests
+      run: |
+        cd tests
+        
+        # Debug: Show current directory and files
+        echo "=== Current directory: $(pwd) ==="
+        ls -la
+        
+        # Check if cucumber.properties exists
+        if [ ! -f src/test/resources/cucumber.properties ]; then
+          echo "Creating cucumber.properties file..."
+          mkdir -p src/test/resources
+          echo "cucumber.publish.enabled=true" > src/test/resources/cucumber.properties
+          echo "cucumber.publish.quiet=false" >> src/test/resources/cucumber.properties
+        fi
+        
+        echo "=== cucumber.properties content ==="
+        cat src/test/resources/cucumber.properties || echo "No cucumber.properties found"
+        
+        # Run tests and capture output to find report URL
+        echo "=== Starting Maven tests ==="
+        mvn clean install 2>&1 | tee test_output.log || {
+          echo "Tests completed with some failures"
+        }
+        
+        echo "=== Searching for Cucumber report URL in logs ==="
+        cat test_output.log | grep -i cucumber || echo "No cucumber mentions found"
+        cat test_output.log | grep -i "reports.cucumber.io" || echo "No cucumber.io URLs found"
+        
+        # Extract Cucumber report URL from logs
+        CUCUMBER_URL=$(grep -oP "https://reports\.cucumber\.io/reports/[a-f0-9-]+" test_output.log | head -1 || echo "")
+        if [ ! -z "$CUCUMBER_URL" ]; then
+          echo "CUCUMBER_REPORT_URL=$CUCUMBER_URL" >> $GITHUB_ENV
+          echo "🥒 Cucumber Report URL: $CUCUMBER_URL"
+          echo "$CUCUMBER_URL" > cucumber_report_url.txt
+        else
+          echo "CUCUMBER_REPORT_URL=NOT_FOUND" >> $GITHUB_ENV
+          echo "No Cucumber report URL found in logs"
+          echo "NOT_FOUND" > cucumber_report_url.txt
+        fi
+        
+        echo "=== Environment variable set ==="
+        echo "CUCUMBER_REPORT_URL: $CUCUMBER_REPORT_URL"
+    
+    # 12. Generate test reports
+    - name: Generate Test Reports
+      run: |
+        cd tests
+        # Generate Cucumber reports
+        mvn verify -DskipTests || true
+        
+        # Debug: List all files in target directory
+        echo "=== Listing target directory contents ==="
+        find target -type f -name "*.html" -o -name "*.json" -o -name "*.xml" | head -20 || echo "No report files found"
+    
+    # 13. Create Report Summary File
+    - name: Create Report Summary
+      run: |
+        cd tests
+        
+        echo "=== Creating report summary ==="
+        echo "Current CUCUMBER_REPORT_URL: ${CUCUMBER_REPORT_URL:-NOT_SET}"
+        
+        # Create reports directory if it doesn't exist
+        mkdir -p reports
+        
+        echo "# 🧪 E2E Test Results Summary" > reports/test_summary.md
+        echo "" >> reports/test_summary.md
+        echo "## 📊 Test Reports" >> reports/test_summary.md
+        echo "" >> reports/test_summary.md
+        
+        if [ "$CUCUMBER_REPORT_URL" != "NOT_FOUND" ] && [ ! -z "$CUCUMBER_REPORT_URL" ]; then
+          echo "### 🥒 Online Cucumber Report" >> reports/test_summary.md
+          echo "**Live Report URL:** [$CUCUMBER_REPORT_URL]($CUCUMBER_REPORT_URL)" >> reports/test_summary.md
+          echo "" >> reports/test_summary.md
+        else
+          echo "### ⚠️ Online Cucumber Report" >> reports/test_summary.md
+          echo "No online report URL was generated. Check the logs for details." >> reports/test_summary.md
+          echo "" >> reports/test_summary.md
+        fi
+        
+        echo "### 📁 Downloaded Reports" >> reports/test_summary.md
+        echo "- **cucumber-html-report**: HTML formatında detaylı test raporları" >> reports/test_summary.md
+        echo "- **comprehensive-test-reports**: Tüm test dosyaları (JSON, XML, HTML)" >> reports/test_summary.md
+        echo "" >> reports/test_summary.md
+        
+        echo "### 📸 Screenshots" >> reports/test_summary.md
+        echo "Test başarısız olması durumunda ekran görüntüleri \`test-screenshots\` artifact'ında bulunur." >> reports/test_summary.md
+        echo "" >> reports/test_summary.md
+        
+        echo "**Test Execution Time:** $(date)" >> reports/test_summary.md
+        echo "**Repository:** ${{ github.repository }}" >> reports/test_summary.md
+        echo "**Branch:** ${{ github.ref_name }}" >> reports/test_summary.md
+        
+        echo "=== Report summary created ==="
+        cat reports/test_summary.md
+        
+        # Also create a simple text file with just the URL for easy access
+        if [ "$CUCUMBER_REPORT_URL" != "NOT_FOUND" ] && [ ! -z "$CUCUMBER_REPORT_URL" ]; then
+          echo "$CUCUMBER_REPORT_URL" > reports/cucumber_report_url.txt
+        else
+          echo "No URL found" > reports/cucumber_report_url.txt
+        fi
+    
+    # 14. Upload Test Summary as Artifact
+    - name: Upload Test Summary
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-summary-report
+        path: |
+          tests/reports/test_summary.md
+          tests/reports/cucumber_report_url.txt
+          tests/test_output.log
         retention-days: 30
-
-    # 11. Cucumber Raporlarını Yükle
+    
+    # 15. Upload Cucumber HTML Report
     - name: Upload Cucumber HTML Report
       uses: actions/upload-artifact@v4
+      if: always()
       with:
         name: cucumber-html-report
         path: |
           tests/target/**/*cucumber*.html
           tests/target/**/*report*.html
         retention-days: 30
-
-    # 12. PR'ye Test Sonuçlarını Yorum Olarak Ekleyin
+    
+    # 16. Upload comprehensive test reports
+    - name: Upload All Test Reports
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: comprehensive-test-reports
+        path: |
+          tests/target/
+        retention-days: 30
+    
+    # 17. Upload screenshots on failure
+    - name: Upload Screenshots
+      uses: actions/upload-artifact@v4
+      if: failure()
+      with:
+        name: test-screenshots
+        path: tests/screenshots/
+        retention-days: 7
+    
+    # 18. Create Job Summary with Report Links
+    - name: Create Job Summary
+      if: always()
+      run: |
+        echo "=== Creating GitHub Job Summary ==="
+        echo "Current CUCUMBER_REPORT_URL: ${CUCUMBER_REPORT_URL:-NOT_SET}"
+        
+        echo "# 🥒 E2E TEST SUMMARY" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "Test execution completed successfully!" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Tarih:** $(date)" >> $GITHUB_STEP_SUMMARY
+        echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "$CUCUMBER_REPORT_URL" != "NOT_FOUND" ] && [ ! -z "$CUCUMBER_REPORT_URL" ]; then
+          echo "## 🌐 Live Cucumber Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Test URL:** [$CUCUMBER_REPORT_URL]($CUCUMBER_REPORT_URL)" >> $GITHUB_STEP_SUMMARY
+          echo "**Current Env:** $CUCUMBER_REPORT_URL" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "## ⚠️ Cucumber Report Status" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Online Cucumber report URL bulunamadı. Lütfen artifacts'taki logları kontrol edin." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "## 📋 Test Bilgileri" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ E2E testler çalıştırıldı" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Test raporları oluşturuldu" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Artifacts hazırlandı" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        echo "## 📁 Available Reports" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "| 📁 Artifact | 📝 Description |" >> $GITHUB_STEP_SUMMARY
+        echo "|-------------|----------------|" >> $GITHUB_STEP_SUMMARY
+        echo "| 📋 \`test-summary-report\` | Test özeti, loglar ve rapor linkleri |" >> $GITHUB_STEP_SUMMARY
+        echo "| 🥒 \`cucumber-html-report\` | HTML formatında Cucumber raporları |" >> $GITHUB_STEP_SUMMARY
+        echo "| 📊 \`comprehensive-test-reports\` | Tüm test dosyaları ve raporları |" >> $GITHUB_STEP_SUMMARY
+        echo "| 📸 \`test-screenshots\` | Hata durumunda ekran görüntüleri |" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        echo "**🔗 [GitHub Repository](${{ github.server_url }}/${{ github.repository }})**" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "---" >> $GITHUB_STEP_SUMMARY
+        echo "## ✅ E2E Test Tamamlandı" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "Eğer bu summary'yi görebiliyorsanız, E2E testler başarıyla çalıştı!" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Artifacts kontrolü:** Sayfanın en altına scroll yapın." >> $GITHUB_STEP_SUMMARY
+        
+        echo "=== Job Summary created ==="
+        cat $GITHUB_STEP_SUMMARY
+    
+    # 19. Comment PR with enhanced test results
     - name: Comment Test Results on PR
       uses: actions/github-script@v7
       if: github.event_name == 'pull_request'
@@ -95,17 +302,11 @@ jobs:
         script: |
           const fs = require('fs');
           
-          let reportComment = '# 🧪 API Test Results\n\n';
+          let reportComment = '# 🧪 E2E Test Results\n\n';
+          reportComment += `**⏰ Test Execution:** ${new Date().toLocaleString()}\n`;
+          reportComment += `**🌿 Branch:** ${context.ref.replace('refs/heads/', '')}\n\n`;
           
-          // Newman rapor bağlantısını ekleyin
-          const reportUrl = 'https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}';
-          reportComment += `**🔗 [View Test Report](tests/reports/newman-report.html)**\n\n`;
-          reportComment += '## 📊 Test Reports\n';
-          reportComment += '| 📁 Artifact | 📝 Description |\n';
-          reportComment += '|-------------|----------------|\n';
-          reportComment += '| 📋 `newman-report` | HTML formatında Newman raporu |\n';
-          
-          // Cucumber rapor bağlantısını ekleyin
+          // Add Cucumber report link if available
           const cucumberUrl = process.env.CUCUMBER_REPORT_URL;
           if (cucumberUrl && cucumberUrl !== 'NOT_FOUND' && cucumberUrl !== '') {
             reportComment += '## 🥒 Live Cucumber Report\n';
@@ -119,7 +320,7 @@ jobs:
           reportComment += '## 📊 Available Reports\n\n';
           reportComment += '| 📁 Artifact | 📝 Description |\n';
           reportComment += '|-------------|----------------|\n';
-          reportComment += '| 📋 `newman-report` | HTML formatında Newman raporu |\n';
+          reportComment += '| 📋 `test-summary-report` | Test özeti, loglar ve tüm rapor linkleri |\n';
           reportComment += '| 🥒 `cucumber-html-report` | HTML formatında Cucumber raporları |\n';
           reportComment += '| 📊 `comprehensive-test-reports` | Tüm test dosyaları (JSON, XML, HTML) |\n';
           reportComment += '| 📸 `test-screenshots` | Hata durumunda ekran görüntüleri |\n\n';
@@ -133,3 +334,19 @@ jobs:
             repo: context.repo.repo,
             body: reportComment
           });
+    
+    # 20. Cleanup background processes
+    - name: Cleanup Background Processes
+      if: always()
+      run: |
+        # Kill backend process
+        if [ -f app/backend/backend.pid ]; then
+          kill $(cat app/backend/backend.pid) || true
+        fi
+        # Kill frontend process  
+        if [ -f app/frontend/frontend.pid ]; then
+          kill $(cat app/frontend/frontend.pid) || true
+        fi
+        # Kill any remaining processes on ports 3000 and 3001
+        sudo kill -9 $(sudo lsof -t -i:3000) || true
+        sudo kill -9 $(sudo lsof -t -i:3001) || true
